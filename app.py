@@ -4,6 +4,7 @@ import gspread
 from gspread_dataframe import set_with_dataframe, get_as_dataframe
 from google.oauth2.service_account import Credentials
 from datetime import datetime
+import calendar
 
 # --- CONFIGURAZIONE GOOGLE SHEETS ---
 SPREADSHEET_ID = "1WTVrHQP7NulYX5gLBS-9DZfhwxY9RVZTcaR3P79rNlA"
@@ -39,15 +40,14 @@ if tab == "Turni":
     
     # Selezione mese e anno
     oggi = datetime.today()
-    # Ottieni i nomi dei mesi
-    mesi = list(calendar.month_name[1:])  # Ottieni i mesi da "Gennaio" a "Dicembre"
+    mesi = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"]
     mese = st.selectbox("Seleziona mese", mesi, index=oggi.month-1)
     anno = st.number_input("Anno", min_value=2020, max_value=2100, value=oggi.year, step=1)
 
     # Generazione giorni del mese
-    numero_mese = list(calendar.month_name).index(mese)
-    numero_giorni = calendar.monthrange(anno, numero_mese)[1]
-    date_list = [datetime(anno, numero_mese, giorno).date() for giorno in range(1, numero_giorni + 1)]
+    numero_mese = mesi.index(mese)
+    numero_giorni = calendar.monthrange(anno, numero_mese + 1)[1]
+    date_list = [datetime(anno, numero_mese + 1, giorno).date() for giorno in range(1, numero_giorni + 1)]
 
     # Turni disponibili
     turni = ["", "M1", "M2", "P1", "P2", "N"]
@@ -62,7 +62,7 @@ if tab == "Turni":
         df_sheet = pd.DataFrame(columns=["Data", "Giorno", "RSA_Madama", "RSA_AnniAzzurri"])
 
     # Filtro per mese e anno selezionati
-    df_filtered = df_sheet[(df_sheet["Data"].dt.month == numero_mese) & (df_sheet["Data"].dt.year == anno)]
+    df_filtered = df_sheet[(df_sheet["Data"].dt.month == numero_mese + 1) & (df_sheet["Data"].dt.year == anno)]
     df_filtered = df_filtered.sort_values("Data")
 
     # Se mancano giorni, li aggiungiamo
