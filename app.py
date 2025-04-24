@@ -39,7 +39,9 @@ if tab == "Turni":
     
     # Selezione mese e anno
     oggi = datetime.today()
-    mese = st.selectbox("Seleziona mese", list(calendar.month_name[1:]), index=oggi.month-1)
+    # Ottieni i nomi dei mesi
+    mesi = list(calendar.month_name[1:])  # Ottieni i mesi da "Gennaio" a "Dicembre"
+    mese = st.selectbox("Seleziona mese", mesi, index=oggi.month-1)
     anno = st.number_input("Anno", min_value=2020, max_value=2100, value=oggi.year, step=1)
 
     # Generazione giorni del mese
