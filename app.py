@@ -1,11 +1,9 @@
 import streamlit as st
 import pandas as pd
-import calendar
-from datetime import datetime
 import gspread
 from gspread_dataframe import set_with_dataframe, get_as_dataframe
 from google.oauth2.service_account import Credentials
-import json
+from datetime import datetime
 
 # --- CONFIGURAZIONE GOOGLE SHEETS ---
 SPREADSHEET_ID = "1WTVrHQP7NulYX5gLBS-9DZfhwxY9RVZTcaR3P79rNlA"
@@ -26,7 +24,7 @@ st.title("Gestione Turni - Dipendente Unico")
 
 # Selezione mese e anno
 oggi = datetime.today()
-mese = st.selectbox("Seleziona mese", list(calendar.month_name)[1:], index=oggi.month-1)
+mese = st.selectbox("Seleziona mese", list(pd.Series([''] + list(calendar.month_name[1:]))), index=oggi.month-1)
 anno = st.number_input("Anno", min_value=2020, max_value=2100, value=oggi.year, step=1)
 
 # Generazione giorni del mese
@@ -66,62 +64,31 @@ for i, row in df.iterrows():
         df.at[i, "RSA_Madama"] = match.iloc[0].get("RSA_Madama", "")
         df.at[i, "RSA_AnniAzzurri"] = match.iloc[0].get("RSA_AnniAzzurri", "")
 
-# Evidenzia weekend (Sabato e Domenica)
-def evidenzia_giorni(row):
-    if row["Giorno"] in ["Sabato", "Domenica"]:
-        return ["background-color: #ff4b4b; color: white"]*len(row)
-    else:
-        return [""]*len(row)
+# Visualizza la tabella
+st.subheader("Tabella dei Turni")
+st.write(df)
 
-st.subheader(f"Turni per {mese} {anno}")
+# Funzione per modificare il turno
+def modifica_turno(row_index):
+    selected_row = df.iloc[row_index]
+    st.subheader(f"Modifica il turno per {selected_row['Data']}")
+    
+    # Form per modificare i dati
+    rsa_madama = st.selectbox("RSA_Madama", ["", "M1", "M2", "P1", "P2", "N"], index=["", "M1", "M2", "P1", "P2", "N"].index(selected_row["RSA_Madama"]))
+    rsa_anni_azzurri = st.selectbox("RSA_AnniAzzurri", ["", "M1", "M2", "P1", "P2", "N"], index=["", "M1", "M2", "P1", "P2", "N"].index(selected_row["RSA_AnniAzzurri"]))
+    
+    if st.button("Salva modifiche"):
+        # Salva i dati modificati
+        df.at[row_index, "RSA_Madama"] = rsa_madama
+        df.at[row_index, "RSA_AnniAzzurri"] = rsa_anni_azzurri
+        st.success(f"Turno del {selected_row['Data']} aggiornato!")
 
-# Dropdown nelle colonne turni
-st.write("Modifica i turni direttamente nella tabella:")
+        # Aggiorna il Google Sheet
+        df["Data"] = pd.to_datetime(df["Data"], errors='coerce')
+        set_with_dataframe(sheet, df)
+        st.write(df)  # Ritorna la tabella aggiornata
 
-edited_df = st.data_editor(
-    df,
-    column_config={
-        "RSA_Madama": st.column_config.SelectboxColumn("RSA_Madama", options=turni),
-        "RSA_AnniAzzurri": st.column_config.SelectboxColumn("RSA_AnniAzzurri", options=turni)
-    },
-    use_container_width=True,
-    hide_index=True,
-    num_rows="fixed"
-)
-
-# Bottone per salvare su Google Sheets
-if st.button("💾 Salva su Google Sheets"):
-    # Recupera i dati modificati da `st.data_editor`
-    df_modificato = edited_df.copy()
-
-    # Legge tutto il foglio e rimuove i dati dello stesso mese
-    df_tutti = get_as_dataframe(sheet, evaluate_formulas=True)
-    df_tutti["Data"] = pd.to_datetime(df_tutti["Data"], errors='coerce')
-    df_tutti = df_tutti[~((df_tutti["Data"].dt.month == numero_mese) & (df_tutti["Data"].dt.year == anno))]
-
-    # Aggiunge i dati nuovi
-    df_modificato["Data"] = pd.to_datetime(df_modificato["Data"], errors='coerce')
-    df_finale = pd.concat([df_tutti, df_modificato], ignore_index=True)
-    df_finale = df_finale.sort_values("Data")
-
-    # Salva su Google Sheets
-    sheet.clear()
-    set_with_dataframe(sheet, df_finale)
-    st.success("Turni aggiornati correttamente su Google Sheets!")
-
-    # Rileggi i dati aggiornati da Google Sheets
-    df_updated = get_as_dataframe(sheet, evaluate_formulas=True)
-    df_updated["Data"] = pd.to_datetime(df_updated["Data"], errors='coerce')
-    df_updated = df_updated[(df_updated["Data"].dt.month == numero_mese) & (df_updated["Data"].dt.year == anno)]
-
-    # Mostra i dati aggiornati nell'app
-    edited_df = st.data_editor(
-        df_updated,  # Carica i dati aggiornati
-        column_config={
-            "RSA_Madama": st.column_config.SelectboxColumn("RSA_Madama", options=turni),
-            "RSA_AnniAzzurri": st.column_config.SelectboxColumn("RSA_AnniAzzurri", options=turni)
-        },
-        use_container_width=True,
-        hide_index=True,
-        num_rows="fixed"
-    )
+# Aggiungi il pulsante "Modifica" per ogni riga
+for i in range(len(df)):
+    if st.button(f"Modifica {df['Data'][i]}"):
+        modifica_turno(i)
