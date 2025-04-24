@@ -109,10 +109,19 @@ if st.button("💾 Salva su Google Sheets"):
     set_with_dataframe(sheet, df_finale)
     st.success("Turni aggiornati correttamente su Google Sheets!")
 
-    # Rileggiamo i dati dal Google Sheet per aggiornare la visualizzazione
-    df_sheet_updated = get_as_dataframe(sheet, evaluate_formulas=True)
-    df_sheet_updated["Data"] = pd.to_datetime(df_sheet_updated["Data"], errors='coerce')
-    df_sheet_updated = df_sheet_updated[(df_sheet_updated["Data"].dt.month == numero_mese) & (df_sheet_updated["Data"].dt.year == anno)]
+    # Rileggi i dati aggiornati da Google Sheets
+    df_updated = get_as_dataframe(sheet, evaluate_formulas=True)
+    df_updated["Data"] = pd.to_datetime(df_updated["Data"], errors='coerce')
+    df_updated = df_updated[(df_updated["Data"].dt.month == numero_mese) & (df_updated["Data"].dt.year == anno)]
 
-    # Mostra i dati aggiornati nell'app
-    st.dataframe(df_sheet_updated)
+    # Mostra i dati aggiornati nell'app (con st.data_editor)
+    edited_df = st.data_editor(
+        df_updated,
+        column_config={
+            "RSA_Madama": st.column_config.SelectboxColumn("RSA_Madama", options=turni),
+            "RSA_AnniAzzurri": st.column_config.SelectboxColumn("RSA_AnniAzzurri", options=turni)
+        },
+        use_container_width=True,
+        hide_index=True,
+        num_rows="fixed"
+    )
