@@ -2,9 +2,9 @@ import streamlit as st
 import pandas as pd
 import calendar
 from datetime import datetime
-from st_aggrid import AgGrid, GridOptionsBuilder
+from st_aggrid import AgGrid, GridOptionsBuilder, JsCode
 import gspread
-from gspread_dataframe import set_with_dataframe
+from gspread_dataframe import set_with_dataframe, get_as_dataframe
 from google.oauth2.service_account import Credentials
 import json
 
@@ -18,6 +18,9 @@ creds_dict = st.secrets["gcp_service_account"]
 credentials = Credentials.from_service_account_info(dict(creds_dict), scopes=SCOPES)
 client = gspread.authorize(credentials)
 sheet = client.open_by_key(SPREADSHEET_ID).worksheet(WORKSHEET_NAME)
+
+# Giorni della settimana in italiano
+giorni_settimana = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
 
 # --- INTERFACCIA STREAMLIT ---
 st.title("Gestione Turni - Dipendente Unico")
@@ -35,20 +38,53 @@ date_list = [datetime(anno, numero_mese, giorno).date() for giorno in range(1, n
 # Turni disponibili
 turni = ["", "M1", "M2", "P1", "P2", "N"]
 
-# Creazione DataFrame
+# --- CARICAMENTO DATI DA GOOGLE SHEET ---
+df_sheet = get_as_dataframe(sheet, evaluate_formulas=True)
+
+# Conversione colonna Data in datetime
+if "Data" in df_sheet.columns:
+    df_sheet["Data"] = pd.to_datetime(df_sheet["Data"], errors='coerce')
+else:
+    df_sheet = pd.DataFrame(columns=["Data", "Giorno", "RSA_Madama", "RSA_AnniAzzurri"])
+
+# Filtro per mese e anno selezionati
+df_filtered = df_sheet[(df_sheet["Data"].dt.month == numero_mese) & (df_sheet["Data"].dt.year == anno)]
+df_filtered = df_filtered.sort_values("Data")
+
+# Se mancano giorni, li aggiungiamo
 df = pd.DataFrame({
     "Data": date_list,
-    "Giorno": [calendar.day_name[data.weekday()] for data in date_list],
+    "Giorno": [giorni_settimana[data.weekday()] for data in date_list],
     "RSA_Madama": ["" for _ in range(numero_giorni)],
     "RSA_AnniAzzurri": ["" for _ in range(numero_giorni)]
 })
 
-# Configurazione AgGrid
+# Aggiorna la tabella con i dati esistenti (merge)
+for i, row in df.iterrows():
+    giorno_data = row["Data"]
+    match = df_filtered[df_filtered["Data"] == giorno_data]
+    if not match.empty:
+        df.at[i, "RSA_Madama"] = match.iloc[0].get("RSA_Madama", "")
+        df.at[i, "RSA_AnniAzzurri"] = match.iloc[0].get("RSA_AnniAzzurri", "")
+
+# --- CONFIGURAZIONE AGGRID ---
 gb = GridOptionsBuilder.from_dataframe(df)
 gb.configure_column("RSA_Madama", editable=True, cellEditor='agSelectCellEditor', cellEditorParams={'values': turni})
 gb.configure_column("RSA_AnniAzzurri", editable=True, cellEditor='agSelectCellEditor', cellEditorParams={'values': turni})
 gb.configure_column("Data", editable=False)
 gb.configure_column("Giorno", editable=False)
+
+# Evidenzia Sabato e Domenica
+cell_style_jscode = JsCode("""
+function(params) {
+    if (params.value == 'Sabato' || params.value == 'Domenica') {
+        return { 'color': 'white', 'backgroundColor': '#ff4b4b' };
+    }
+    return null;
+}
+""")
+gb.configure_column("Giorno", cellStyle=cell_style_jscode)
+
 grid_options = gb.build()
 
 st.subheader(f"Turni per {mese} {anno}")
@@ -63,5 +99,18 @@ grid_response = AgGrid(
 # Bottone per salvare su Google Sheets
 if st.button("💾 Salva su Google Sheets"):
     df_modificato = grid_response["data"]
-    set_with_dataframe(sheet, df_modificato)
-    st.success("Turni salvati correttamente su Google Sheets!")
+
+    # Legge tutto il foglio e rimuove i dati dello stesso mese
+    df_tutti = get_as_dataframe(sheet, evaluate_formulas=True)
+    df_tutti["Data"] = pd.to_datetime(df_tutti["Data"], errors='coerce')
+    df_tutti = df_tutti[~((df_tutti["Data"].dt.month == numero_mese) & (df_tutti["Data"].dt.year == anno))]
+
+    # Aggiunge i dati nuovi
+    df_modificato["Data"] = pd.to_datetime(df_modificato["Data"], errors='coerce')
+    df_finale = pd.concat([df_tutti, df_modificato], ignore_index=True)
+    df_finale = df_finale.sort_values("Data")
+
+    # Salva su Google Sheets
+    sheet.clear()
+    set_with_dataframe(sheet, df_finale)
+    st.success("Turni aggiornati correttamente su Google Sheets!")
