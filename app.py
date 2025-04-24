@@ -75,14 +75,15 @@ gb.configure_column("Data", editable=False)
 gb.configure_column("Giorno", editable=False)
 
 # Evidenzia Sabato e Domenica
-cell_style_jscode = JsCode(\"\"\"
+
+cell_style_jscode = JsCode("""
 function(params) {
   if (params.value === 'Sabato' || params.value === 'Domenica') {
     return {'backgroundColor': '#ff4b4b', 'color': 'white'};
   }
   return {};
 }
-\"\"\")
+""")
 gb.configure_column("Giorno", cellStyle=cell_style_jscode)
 
 grid_options = gb.build()
