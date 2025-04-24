@@ -6,20 +6,18 @@ from st_aggrid import AgGrid, GridOptionsBuilder
 import gspread
 from gspread_dataframe import set_with_dataframe
 from google.oauth2.service_account import Credentials
+import json
 
 # --- CONFIGURAZIONE GOOGLE SHEETS ---
-# Sostituisci con il nome del tuo Google Sheet
-GOOGLE_SHEET_NAME = "TurniDipendente"
+SPREADSHEET_ID = "1WTVrHQP7NulYX5gLBS-9DZfhwxY9RVZTcaR3P79rNlA"
 WORKSHEET_NAME = "Dati"
 
-# Percorso al file JSON con le credenziali
-CREDENTIALS_FILE = "credenziali.json"
+# Autenticazione Google Sheets da secrets
 SCOPES = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-
-# Autenticazione Google Sheets
-credentials = Credentials.from_service_account_file(CREDENTIALS_FILE, scopes=SCOPES)
+creds_dict = st.secrets["gcp_service_account"]
+credentials = Credentials.from_service_account_info(json.loads(json.dumps(creds_dict)), scopes=SCOPES)
 client = gspread.authorize(credentials)
-sheet = client.open(GOOGLE_SHEET_NAME).worksheet(WORKSHEET_NAME)
+sheet = client.open_by_key(SPREADSHEET_ID).worksheet(WORKSHEET_NAME)
 
 # --- INTERFACCIA STREAMLIT ---
 st.title("Gestione Turni - Dipendente Unico")
