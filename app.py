@@ -15,7 +15,7 @@ WORKSHEET_NAME = "Dati"
 # Autenticazione Google Sheets da secrets
 SCOPES = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 creds_dict = st.secrets["gcp_service_account"]
-credentials = Credentials.from_service_account_info(json.loads(json.dumps(creds_dict)), scopes=SCOPES)
+credentials = Credentials.from_service_account_info(dict(creds_dict), scopes=SCOPES)
 client = gspread.authorize(credentials)
 sheet = client.open_by_key(SPREADSHEET_ID).worksheet(WORKSHEET_NAME)
 
