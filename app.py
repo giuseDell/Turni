@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import calendar
 from datetime import datetime
-from st_aggrid import AgGrid, GridOptionsBuilder, JsCode
 import gspread
 from gspread_dataframe import set_with_dataframe, get_as_dataframe
 from google.oauth2.service_account import Credentials
@@ -67,48 +66,39 @@ for i, row in df.iterrows():
         df.at[i, "RSA_Madama"] = match.iloc[0].get("RSA_Madama", "")
         df.at[i, "RSA_AnniAzzurri"] = match.iloc[0].get("RSA_AnniAzzurri", "")
 
-# --- CONFIGURAZIONE AGGRID ---
-gb = GridOptionsBuilder.from_dataframe(df)
-gb.configure_column("RSA_Madama", editable=True, cellEditor='agSelectCellEditor', cellEditorParams={'values': turni})
-gb.configure_column("RSA_AnniAzzurri", editable=True, cellEditor='agSelectCellEditor', cellEditorParams={'values': turni})
-gb.configure_column("Data", editable=False)
-gb.configure_column("Giorno", editable=False)
-
-# Evidenzia Sabato e Domenica
-
-cell_style_jscode = JsCode("""
-function(params) {
-  if (params.value === 'Sabato' || params.value === 'Domenica') {
-    return {'backgroundColor': '#ff4b4b', 'color': 'white'};
-  }
-  return {};
-}
-""")
-gb.configure_column("Giorno", cellStyle=cell_style_jscode)
-
-grid_options = gb.build()
+# Evidenzia weekend (Sabato e Domenica)
+def evidenzia_giorni(row):
+    if row["Giorno"] in ["Sabato", "Domenica"]:
+        return ["background-color: #ff4b4b; color: white"]*len(row)
+    else:
+        return [""]*len(row)
 
 st.subheader(f"Turni per {mese} {anno}")
-grid_response = AgGrid(
+
+# Dropdown nelle colonne turni
+st.write("Modifica i turni direttamente nella tabella:")
+
+edited_df = st.data_editor(
     df,
-    gridOptions=grid_options,
-    update_mode="MODEL_CHANGED",
-    fit_columns_on_grid_load=True,
-    theme="material"
+    column_config={
+        "RSA_Madama": st.column_config.SelectboxColumn("RSA_Madama", options=turni),
+        "RSA_AnniAzzurri": st.column_config.SelectboxColumn("RSA_AnniAzzurri", options=turni)
+    },
+    use_container_width=True,
+    hide_index=True,
+    num_rows="fixed"
 )
 
 # Bottone per salvare su Google Sheets
 if st.button("💾 Salva su Google Sheets"):
-    df_modificato = grid_response["data"]
-
     # Legge tutto il foglio e rimuove i dati dello stesso mese
     df_tutti = get_as_dataframe(sheet, evaluate_formulas=True)
     df_tutti["Data"] = pd.to_datetime(df_tutti["Data"], errors='coerce')
     df_tutti = df_tutti[~((df_tutti["Data"].dt.month == numero_mese) & (df_tutti["Data"].dt.year == anno))]
 
     # Aggiunge i dati nuovi
-    df_modificato["Data"] = pd.to_datetime(df_modificato["Data"], errors='coerce')
-    df_finale = pd.concat([df_tutti, df_modificato], ignore_index=True)
+    edited_df["Data"] = pd.to_datetime(edited_df["Data"], errors='coerce')
+    df_finale = pd.concat([df_tutti, edited_df], ignore_index=True)
     df_finale = df_finale.sort_values("Data")
 
     # Salva su Google Sheets
